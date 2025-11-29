@@ -71,13 +71,15 @@ SyncHuman is a state-of-the-art system for **reconstructing 3D human bodies from
 bash setup.sh
 
 # Then run inference
-conda activate SyncHuman
+source /opt/conda/bin/activate SyncHuman
 export ATTN_BACKEND=xformers
 python inference_OneStage.py
 ```
 
 **Time:** ~60 minutes (mostly automated)
 **Difficulty:** ⭐ Very Easy
+
+**Note:** Use `source /opt/conda/bin/activate SyncHuman` to activate the environment. If that doesn't work, try `conda activate SyncHuman` after sourcing conda initialization.
 
 ---
 

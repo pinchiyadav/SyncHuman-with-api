@@ -30,8 +30,16 @@ This guide provides step-by-step instructions to set up SyncHuman on a fresh Lin
 ```bash
 # Create a new conda environment with Python 3.10
 conda create -n SyncHuman python=3.10 -y
+
+# Activate the environment
+# Method 1 (RECOMMENDED if conda activate doesn't work):
+source /opt/conda/bin/activate SyncHuman
+
+# Method 2 (if Method 1 fails or conda init was run):
 conda activate SyncHuman
 ```
+
+**Note:** If you're on a system where `conda activate` doesn't work, use `source /opt/conda/bin/activate SyncHuman` instead.
 
 ### 2. Install PyTorch with CUDA 12.1
 
@@ -197,6 +205,17 @@ export SPARSE_ATTN_BACKEND=flash_attn
 ```
 
 ## Troubleshooting
+
+### Issue: `conda activate` command not found
+**Solution:** Use the direct activation method instead
+```bash
+# RECOMMENDED:
+source /opt/conda/bin/activate SyncHuman
+
+# This works on all systems without requiring conda shell initialization
+```
+
+**Why this happens:** Your shell doesn't have conda initialization configured. Using `source /opt/conda/bin/activate` directly works regardless of shell configuration.
 
 ### Issue: "No module named 'flash_attn'"
 **Solution:** Use xformers instead

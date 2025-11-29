@@ -30,12 +30,17 @@ The script will:
 ### 2. Activate the Environment
 
 ```bash
-# Option 1: Using conda
+# RECOMMENDED: Source conda directly
+source /opt/conda/bin/activate SyncHuman
+
+# Alternative: Using conda command (if conda init worked)
 conda activate SyncHuman
 
-# Option 2: Using the environment script
+# Alternative: Using the environment script
 source env.sh
 ```
+
+**Note:** If `conda activate` doesn't work, use `source /opt/conda/bin/activate SyncHuman` instead.
 
 ### 3. Run Your First Inference
 

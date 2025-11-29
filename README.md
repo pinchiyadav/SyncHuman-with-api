@@ -48,8 +48,11 @@ This will:
 
 ### Quick Test
 ```bash
-# Activate environment
-conda activate SyncHuman
+# Activate environment (RECOMMENDED METHOD)
+source /opt/conda/bin/activate SyncHuman
+
+# Or if that doesn't work, try:
+# conda activate SyncHuman
 
 # Run Stage 1 inference
 export ATTN_BACKEND=xformers

@@ -224,14 +224,19 @@ Response Status: 200 OK
 
 ## 7. Quick Reference
 
-### Activation
+### Activation (IMPORTANT!)
 ```bash
-# Option 1: Direct conda
+# RECOMMENDED METHOD (works on all systems):
+source /opt/conda/bin/activate SyncHuman
+
+# Alternative Method (if you have conda init configured):
 conda activate SyncHuman
 
-# Option 2: Using env script
+# Or use the environment script:
 source env.sh
 ```
+
+**If `conda activate` doesn't work:** Use `source /opt/conda/bin/activate SyncHuman` instead. This is the direct way to activate without requiring conda shell integration.
 
 ### Running Inference
 ```bash
