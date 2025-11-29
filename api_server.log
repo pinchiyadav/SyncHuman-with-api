@@ -1,0 +1,15 @@
+/workspace/SyncHuman/venv/lib/python3.10/site-packages/diffusers/models/transformers/transformer_2d.py:34: FutureWarning: `Transformer2DModelOutput` is deprecated and will be removed in version 1.0.0. Importing `Transformer2DModelOutput` from `diffusers.models.transformer_2d` is deprecated and this will be removed in a future version. Please use `from diffusers.models.modeling_outputs import Transformer2DModelOutput`, instead.
+  deprecate("Transformer2DModelOutput", "1.0.0", deprecation_message)
+INFO:     Started server process [27725]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[SPARSE] Backend: spconv, Attention: flash_attn
+Warp 1.10.0 initialized:
+   CUDA Toolkit 12.8, Driver 12.6
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA A40" (44 GiB, sm_86, mempool enabled)
+   Kernel cache:
+     /root/.cache/warp/1.10.0
+INFO:     127.0.0.1:45324 - "GET /health HTTP/1.1" 200 OK

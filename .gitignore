@@ -1,0 +1,87 @@
+# ============================
+# SyncHuman / Humayun3D Project Gitignore
+# ============================
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# 3D assets and heavy outputs
+*.obj
+*.ply
+*.fbx
+*.glb
+*.gltf
+*.npz
+*.npy
+*.zip
+*.tar
+*.tar.gz
+
+# Model weights (VERY large)
+*.pth
+*.pt
+*.ckpt
+*.bin
+*.safetensors
+
+# Checkpoints & run outputs
+checkpoints/
+runs/
+output/
+outputs/
+results/
+logs/
+wandb/
+
+# CUDA cache & build artifacts
+*.cu.o
+*.so
+*.so.*
+*.a
+
+# HuggingFace cache
+huggingface/
+hf_cache/
+~/.cache/
+~/.huggingface/
+
+# Dataset folders (huge)
+datasets/
+data/
+raw/
+processed/
+samples/
+
+# Node (if API or web GUI used)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# SyncHuman specific (if repo includes web server)
+static/uploads/
+static/tmp/

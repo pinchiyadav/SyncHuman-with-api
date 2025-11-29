@@ -1,0 +1,29 @@
+{
+  "num_views": 5,
+  "metadata": {
+    "feature_extractor": {
+      "class": "transformers.models.clip.image_processing_clip.CLIPImageProcessor",
+      "subdir": "feature_extractor"
+    },
+    "image_encoder": {
+      "class": "transformers.models.clip.modeling_clip.CLIPVisionModelWithProjection",
+      "subdir": "image_encoder"
+    },
+    "text_encoder": {
+      "class": "transformers.models.clip.modeling_clip.CLIPTextModel",
+      "subdir": "text_encoder"
+    },
+    "SyncHuman_2D3DCrossSpaceDiffusion": {
+      "class": "SyncHuman.models.OneStage.SyncHuman_2D3DCrossSpaceDiffusion.SyncHuman_2D3DCrossSpaceDiffusion",
+      "subdir": "SyncHuman_2D3DCrossSpaceDiffusion"
+    },
+    "vae": {
+      "class": "diffusers.models.autoencoders.autoencoder_kl.AutoencoderKL",
+      "subdir": "vae"
+    },
+    "sparse_structure_decoder": {
+      "class": "SyncHuman.models.OneStage.sparse_structure_vae.SparseStructureDecoder",
+      "subdir": "sparse_structure_decoder"
+    }
+  }
+}
