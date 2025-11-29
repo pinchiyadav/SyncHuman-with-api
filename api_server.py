@@ -43,8 +43,8 @@ except Exception as exc:  # pragma: no cover - runtime check
 DEFAULT_STAGE1_STEPS = 50
 DEFAULT_STAGE2_STEPS = 25
 
-os.environ.setdefault("ATTN_BACKEND", "flash_attn")
-os.environ.setdefault("SPARSE_ATTN_BACKEND", "flash_attn")
+os.environ.setdefault("ATTN_BACKEND", "xformers")
+os.environ.setdefault("SPARSE_ATTN_BACKEND", "xformers")
 
 app = FastAPI(title="SyncHuman API", version="0.1.0")
 

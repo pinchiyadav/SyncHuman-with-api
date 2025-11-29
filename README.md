@@ -28,64 +28,142 @@
 </div>
 
 
-## Environment Setup
+## ⚡ Quick Start
 
-We tested on H800 with CUDA 12.1. Follow the steps below to set up the environment.
+### Automatic Setup (Recommended)
+For a fully automated setup on a fresh machine, use our setup script:
 
-### 1) Create Conda env and install PyTorch (CUDA 12.1)
 ```bash
-conda create -n SyncHuman python=3.10
+bash setup.sh
+```
+
+This will:
+- ✓ Create conda environment with Python 3.10
+- ✓ Install PyTorch with CUDA 12.1 support
+- ✓ Install all dependencies
+- ✓ Download model checkpoints (~8.5GB)
+- ✓ Verify installation
+
+**Setup time:** ~1 hour (mostly model download)
+
+### Quick Test
+```bash
+# Activate environment
 conda activate SyncHuman
 
-# PyTorch 2.1.1 + CUDA 12.1
-conda install pytorch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 pytorch-cuda=12.1 -c pytorch -c nvidia
-
-```
-
-### 2) Follow [trellis](https://github.com/microsoft/TRELLIS) to setup the env
-
-
-### 3) Install remaining Python packages
-```bash
-pip install accelerate safetensors==0.4.5 diffusers==0.29.1 transformers==4.36.0
-```
-
-## Inference
-```
-git clone https://github.com/xishuxishu/SyncHuman.git
-```
-### 1) download ckpts
-```
-cd SyncHuman
-python download.py
-```
-The file organization structure is shown below：
-
-
-```
-SyncHuman
-├── ckpts
-│   ├── OneStage
-│   └── SecondStage
-├── SyncHuman
-├── examples
-├── inference_OneStage.py
-├── inference_SecondStage.py
-└── download.py
-```
-
-
-
-### 2) run the inference code
-```
+# Run Stage 1 inference
+export ATTN_BACKEND=xformers
 python inference_OneStage.py
 
+# Or use the API
+python api_server_stage1.py
+# Visit http://localhost:8000
+```
+
+## 📚 Detailed Documentation
+
+We provide comprehensive setup guides for different needs:
+
+1. **[QUICKSTART.md](QUICKSTART.md)** - 5-minute quick start guide
+   - Perfect for first-time users
+   - Shows how to run your first inference
+   - Includes API usage examples
+
+2. **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Comprehensive 50-page setup guide
+   - Detailed step-by-step installation
+   - Troubleshooting section with solutions
+   - Environment variables reference
+   - Advanced configuration examples
+   - GPU memory optimization tips
+   - Performance benchmarks
+
+3. **[INSTALLATION_SUMMARY.md](INSTALLATION_SUMMARY.md)** - Installation verification report
+   - What was tested and verified
+   - Known issues and solutions
+   - Files created and modified
+   - Performance metrics on A40 GPU
+
+## 🚀 Inference
+
+### Stage 1: Multi-view Generation
+```bash
+export ATTN_BACKEND=xformers
+python inference_OneStage.py
+```
+
+**Output (in `outputs/OneStage/`):**
+- `color_0.png` to `color_4.png` - 5 multi-view color predictions
+- `normal_0.png` to `normal_4.png` - 5 multi-view normal predictions
+- `coordinates.npz` - Sparse 3D structure
+- Processing time: ~1.5-2 minutes on A40 GPU
+
+### Stage 2: Final Geometry (Optional)
+```bash
+export ATTN_BACKEND=xformers
 python inference_SecondStage.py
 ```
 
-If you want to change the example image used for inference, please modify the `image_path` in `inference_OneStage.py`.
+**Output:**
+- `outputs/SecondStage/output.glb` - Final 3D model
+- Note: Requires kaolin (see SETUP_GUIDE.md for installation)
 
-Then you will get the final generated result at `outputs/SecondStage/output.glb`.
+## 🌐 Web API
+
+Start the API server:
+```bash
+export ATTN_BACKEND=xformers
+python api_server_stage1.py
+```
+
+Then use it:
+```bash
+# Upload image and get results
+curl -X POST http://localhost:8000/generate \
+  -F "image=@input.png" \
+  -F "stage1_steps=50"
+
+# Visit http://localhost:8000 for interactive UI
+```
+
+## 📁 Project Structure
+
+```
+SyncHuman/
+├── QUICKSTART.md                 # Quick start guide
+├── SETUP_GUIDE.md               # Comprehensive setup guide
+├── INSTALLATION_SUMMARY.md      # Verification report
+├── setup.sh                     # Automated setup script
+├── env.sh                       # Environment activation
+├── api_server_stage1.py         # Stage 1-only API server (✓ recommended)
+├── api_server.py                # Original API server
+├── inference_OneStage.py        # Stage 1 inference
+├── inference_SecondStage.py     # Stage 2 inference
+├── test_inference.py            # Stage 1 test script
+├── test_api.py                  # API test script
+├── ckpts/                       # Model checkpoints
+│   ├── OneStage/               # Stage 1 models
+│   └── SecondStage/            # Stage 2 models
+├── SyncHuman/                   # Main package
+├── examples/                    # Example images
+└── outputs/                     # Inference results
+```
+
+## ✓ Tested & Verified
+
+This installation has been tested on:
+- **GPU:** NVIDIA A40 (46GB VRAM)
+- **OS:** Linux (Ubuntu 20.04+)
+- **CUDA:** 12.1
+- **Python:** 3.10
+- **PyTorch:** 2.5.1
+
+**All tests passing:**
+- ✓ Stage 1 inference
+- ✓ API endpoint
+- ✓ Multi-image batch processing
+- ✓ GPU memory management
+
+See [INSTALLATION_SUMMARY.md](INSTALLATION_SUMMARY.md) for detailed test results.
 
 
 ## Ack
