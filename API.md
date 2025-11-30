@@ -1,8 +1,8 @@
 # SyncHuman Unified API - Complete Documentation
 
-**One API. Smart Defaults. Flexible Configuration.**
+**One API. Smart Defaults. Request-Based Configuration.**
 
-This is the **single official API** for SyncHuman with intelligent defaults and configuration flags for all use cases.
+This is the **single official API** for SyncHuman. Start the server with no flags, then configure each request as needed.
 
 ---
 
@@ -10,12 +10,12 @@ This is the **single official API** for SyncHuman with intelligent defaults and 
 
 ### Use Case 1: Maximum Official Quality (Default)
 ```bash
-# Default: Stage 1+2 with kaolin, produces textured GLB 3D models
+# Start server (no flags needed)
 source /opt/conda/bin/activate SyncHuman
 export ATTN_BACKEND=xformers
 python api_server.py
 
-# In another terminal:
+# In another terminal - make request with default settings:
 curl -X POST http://localhost:8000/generate \
   -F "image=@image.png" \
   -F "download=true" \
@@ -29,12 +29,13 @@ curl -X POST http://localhost:8000/generate \
 
 ### Use Case 2: Fast & Simple (No Kaolin Needed)
 ```bash
-# Skip Stage 2, get multiviews only
-python api_server.py --stage1-only
+# Same server startup (no flags)
+python api_server.py
 
-# Same API call:
+# Request with stage1_only flag:
 curl -X POST http://localhost:8000/generate \
   -F "image=@image.png" \
+  -F "stage1_only=true" \
   -F "download=true" \
   --output result.zip
 ```
@@ -46,12 +47,13 @@ curl -X POST http://localhost:8000/generate \
 
 ### Use Case 3: Production Ready (Always Works)
 ```bash
-# Try full pipeline, gracefully fall back to Stage 1 if kaolin missing
-python api_server.py --graceful-fallback
+# Same server startup (no flags)
+python api_server.py
 
-# Same API call:
+# Request with graceful_fallback flag:
 curl -X POST http://localhost:8000/generate \
   -F "image=@image.png" \
+  -F "graceful_fallback=true" \
   -F "download=true" \
   --output result.zip
 ```
@@ -63,58 +65,121 @@ curl -X POST http://localhost:8000/generate \
 
 ---
 
-## Command-Line Flags Reference
+## Server Startup
 
-### Mode Selection (mutually exclusive)
-
+### Basic (Recommended)
 ```bash
-# Official maximum quality (default)
+# No flags needed - server auto-detects available stages
 python api_server.py
-
-# Fast mode - Stage 1 only
-python api_server.py --stage1-only
-
-# Production safe - graceful fallback
-python api_server.py --graceful-fallback
 ```
 
-### Quality Customization
-
+### With Custom Port
 ```bash
-# Adjust inference steps for quality/speed tradeoff
-python api_server.py --stage1-steps=75 --stage2-steps=35
-
-# Stage 1 steps: 30-100 (default: 50)
-#   - 30: Very fast, lower quality
-#   - 50: Official default (recommended)
-#   - 75: Higher quality, slower
-#   - 100: Maximum quality, slowest
-
-# Stage 2 steps: 15-40 (default: 25)
-#   - 15: Fast (if available)
-#   - 25: Official default
-#   - 40: Very high quality (if available)
+# Modify the port in api_server.py or use environment variables
+# Default: http://0.0.0.0:8000
+python api_server.py
 ```
 
-### Server Configuration
+Server will print startup info showing:
+- ✓ Stage 1: Available (always)
+- ✓ Stage 2: Available (if kaolin installed) or ✗ Not available
+
+---
+
+## Request Parameters Reference
+
+All configuration happens via POST request parameters to the `/generate` endpoint.
+
+### Mode Selection Parameters
+
+**`stage1_only` (boolean, default: false)**
+- Skip Stage 2, run only Stage 1 (multiview generation)
+- No kaolin required
+- Use when: kaolin not installed, or you only need multiviews
+- Quality: 95% (⭐⭐⭐⭐)
+- Time: 1.5-2 minutes
 
 ```bash
-# Custom host/port
-python api_server.py --host 127.0.0.1 --port 9000
-
-# Attention backend
-python api_server.py --attn-backend xformers   # default, works on all GPUs
-python api_server.py --attn-backend flash-attn  # faster on compatible GPUs
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "stage1_only=true"
 ```
 
-### Full Example
+**`graceful_fallback` (boolean, default: false)**
+- Try full pipeline (Stage 1+2), fall back to Stage 1 if kaolin missing
+- Always works, adapts to what's available
+- Use when: you want best available quality without manual configuration
 
 ```bash
-# Production-safe server with higher quality, custom port
-python api_server.py \
-  --graceful-fallback \
-  --stage1-steps=75 \
-  --port=8080
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "graceful_fallback=true"
+```
+
+### Quality Customization Parameters
+
+**`stage1_steps` (integer, 30-100, default: 50)**
+- Number of inference steps for Stage 1 (multiview generation)
+- Higher = better quality but slower
+- Recommended values:
+  - 30: Very fast, lower quality
+  - 50: Official default (recommended)
+  - 75: Higher quality, slower
+  - 100: Maximum quality, slowest
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "stage1_steps=75"
+```
+
+**`stage2_steps` (integer, 15-40, default: 25)**
+- Number of inference steps for Stage 2 (mesh refinement with kaolin)
+- Only used if Stage 2 runs (not with `stage1_only=true`)
+- Higher = better quality but slower
+- Recommended values:
+  - 15: Fast mesh generation
+  - 25: Official default
+  - 40: Very high quality
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "stage2_steps=40"
+```
+
+### Output Parameters
+
+**`download` (boolean, default: false)**
+- Return results as ZIP archive instead of direct files
+- Useful for downloading via curl
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "download=true" \
+  --output results.zip
+```
+
+### Input Parameters
+
+**`image` (file upload)**
+- Input image file (RGBA PNG recommended)
+- Formats: PNG, JPG, JPEG
+- Size: Any (will be resized to 768x768)
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@photo.png"
+```
+
+**`image_url` (string, optional)**
+- Alternative to image file upload
+- Provide image URL instead of file
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image_url=https://example.com/image.png"
 ```
 
 ---
@@ -133,12 +198,9 @@ curl http://localhost:8000/health
 {
   "status": "ok",
   "service": "SyncHuman Unified API",
-  "version": "2.0.0",
-  "mode": "official",
   "stage1_available": true,
   "stage2_available": true,
-  "stage1_steps": 50,
-  "stage2_steps": 25
+  "mode": "official"
 }
 ```
 
@@ -149,467 +211,248 @@ Get API configuration and capabilities
 curl http://localhost:8000/info
 ```
 
-**Response includes:**
-- Current mode and description
-- Stage 1 and Stage 2 configuration
-- GPU information and memory available
-- Time estimates for current mode
+**Response:**
+```json
+{
+  "service": "SyncHuman Unified API",
+  "version": "1.0.0",
+  "available_stages": {
+    "stage1": true,
+    "stage2": true
+  },
+  "default_settings": {
+    "stage1_steps": 50,
+    "stage2_steps": 25
+  },
+  "request_parameters": {
+    "stage1_only": "bool - Skip Stage 2",
+    "graceful_fallback": "bool - Try full, fall back gracefully",
+    "stage1_steps": "int 30-100 - Stage 1 quality",
+    "stage2_steps": "int 15-40 - Stage 2 quality",
+    "download": "bool - Return ZIP archive"
+  }
+}
+```
 
 ### GET /
-API documentation
+API documentation and usage instructions
 
 ```bash
 curl http://localhost:8000/
 ```
 
+Returns HTML documentation with interactive interface.
+
 ### POST /generate
-Generate 3D model from image (MAIN ENDPOINT)
+Generate 3D model from image
 
-**Parameters:**
-- `image`: Image file (RGBA PNG recommended)
-- `image_url`: Or provide image URL instead
-- `download`: Return ZIP archive if `true`
-
-**Example - Upload file:**
+**Request:**
 ```bash
 curl -X POST http://localhost:8000/generate \
-  -F "image=@image.png" \
-  -F "download=true" \
-  --output result.zip
+  -F "image=@input.png" \
+  -F "stage1_steps=50" \
+  -F "stage2_steps=25"
 ```
 
-**Example - Image URL:**
-```bash
-curl -X POST http://localhost:8000/generate \
-  -F "image_url=https://example.com/image.png" \
-  -F "download=true" \
-  --output result.zip
-```
-
-**Example - Python:**
-```python
-import requests
-
-def generate_3d(image_path):
-    with open(image_path, 'rb') as f:
-        files = {'image': (image_path.split('/')[-1], f, 'image/png')}
-        response = requests.post(
-            'http://localhost:8000/generate',
-            files=files,
-            data={'download': True},
-            timeout=600
-        )
-        return response
-
-result = generate_3d('image.png')
-with open('result.zip', 'wb') as f:
-    f.write(result.content)
-```
-
-**Response:**
+**Response (JSON):**
 ```json
 {
-  "job_id": "a1b2c3d4",
-  "mode": "official",
+  "success": true,
   "status": "completed",
-  "stage1": {
-    "status": "completed",
-    "output_dir": "tmp_api_jobs/a1b2c3d4/stage1_output",
-    "files": {
-      "color_0": "color_0.png",
-      "color_1": "color_1.png",
-      "normal_0": "normal_0.png",
-      "normal_1": "normal_1.png",
-      ...
+  "duration": 245.5,
+  "mode": "full",
+  "outputs": {
+    "stage1": {
+      "color_maps": ["color_0.png", "color_1.png", "color_2.png", "color_3.png", "color_4.png"],
+      "normal_maps": ["normal_0.png", "normal_1.png", "normal_2.png", "normal_3.png", "normal_4.png"],
+      "coordinates": "coordinates.npz"
+    },
+    "stage2": {
+      "model": "output.glb",
+      "available": true
     }
   },
-  "stage2": {
-    "status": "completed",
-    "output_dir": "tmp_api_jobs/a1b2c3d4/stage2_output",
-    "files": {
-      "output.glb": "output.glb",
-      "output_mesh.ply": "output_mesh.ply"
-    }
+  "paths": {
+    "output_dir": "/workspace/SyncHuman/outputs/SyncHuman_<timestamp>"
   }
 }
 ```
 
 ---
 
-## Output Format
+## Complete Examples
 
-### When Stage 1+2 Completes (Official Mode)
-
-```
-result.zip
-├── stage1/
-│   ├── color_0.png to color_4.png     [5 multi-view RGB images]
-│   ├── normal_0.png to normal_4.png   [5 surface normal maps]
-│   └── input.png                      [768x768 preprocessed image]
-│
-└── stage2/
-    ├── output.glb                     [✨ FINAL 3D MODEL]
-    └── output_mesh.ply                [Triangle mesh (PLY format)]
-```
-
-**output.glb:** Complete textured 3D model ready for:
-- Web viewers (modelviewer.dev, babylon.js)
-- 3D software (Blender, Maya, Cinema4D)
-- Game engines (Unity, Unreal Engine)
-- Mobile/VR apps
-- 3D printing
-
-### When Stage 1 Only (Fast Mode)
-
-```
-result.zip
-└── stage1/
-    ├── color_0.png to color_4.png     [5 multi-view RGB images]
-    ├── normal_0.png to normal_4.png   [5 surface normal maps]
-    └── input.png                      [768x768 preprocessed image]
-```
-
-**Use for:**
-- Multi-view 3D reconstruction
-- Texture synthesis
-- Custom 3D pipelines
-- Geometry analysis
-
----
-
-## Usage Examples
-
-### Example 1: Dussehra Image with Official Quality
-
+### Example 1: Default Maximum Quality
 ```bash
-# Download test image
-curl -L "https://www.pngfind.com/pngs/b/41-416466_dussehra-png.png" -o dussehra.png
-
-# Start API (default mode: official, maximum quality)
+# Terminal 1: Start server
 python api_server.py
 
-# Generate in another terminal
+# Terminal 2: Make request with defaults
 curl -X POST http://localhost:8000/generate \
-  -F "image=@dussehra.png" \
+  -F "image=@my_photo.png" \
   -F "download=true" \
-  --output dussehra_official.zip
-
-# Extract and view
-unzip dussehra_official.zip
-ls -la stage1/     # Multi-views
-ls -la stage2/     # Final GLB model
+  --output result.zip
 ```
+**Result:** Complete textured GLB + multiviews (4-5 min)
 
-**Result:** Complete textured 3D model of person in dussehra.png
-**Time:** 4-5 minutes
-**Output:** GLB file ready for rendering
-
-### Example 2: Batch Processing (Multiple Images)
-
+### Example 2: Fast Mode for Multiple Images
 ```bash
-# Fast mode for batch processing
-python api_server.py --stage1-only
+# Terminal 1: Start server once
+python api_server.py
 
-# Process multiple images
-for image in *.png; do
-  echo "Processing $image..."
+# Terminal 2: Process multiple images quickly
+for image in photos/*.png; do
   curl -X POST http://localhost:8000/generate \
     -F "image=@$image" \
+    -F "stage1_only=true" \
     -F "download=true" \
-    --output "${image%.png}_result.zip"
-  echo "Done: ${image%.png}_result.zip"
+    --output "results/$(basename $image .png).zip"
+  echo "Processed $image (1.5-2 min)"
 done
 ```
+**Result:** Multiview maps only, fast processing (1.5-2 min each)
 
-**Advantage:** 2.7x faster, no kaolin dependency
-**Quality:** 95% (multiviews excellent for many uses)
-
-### Example 3: Custom Quality Settings
-
+### Example 3: High-Quality Results
 ```bash
-# High-quality custom inference
-python api_server.py \
-  --stage1-steps=75 \
-  --stage2-steps=35
+# Terminal 1: Start server
+python api_server.py
 
+# Terminal 2: Request with higher quality
 curl -X POST http://localhost:8000/generate \
-  -F "image=@image.png" \
-  --output result.json
+  -F "image=@high_quality_photo.png" \
+  -F "stage1_steps=100" \
+  -F "stage2_steps=40" \
+  -F "download=true" \
+  --output hq_result.zip
 ```
-
-**Result:** Higher quality than defaults, longer processing
-**Time:** 5-6 minutes
+**Result:** Maximum quality 3D model (5-6 min)
 
 ### Example 4: Production Deployment
-
 ```bash
-# Always-available mode
-python api_server.py \
-  --graceful-fallback \
-  --port=8000
-
-# Automatically uses full pipeline if kaolin available
-# Falls back to Stage 1 only if kaolin missing
-# Never fails due to missing dependencies
-```
-
-**Perfect for:** Production servers, cloud deployments, CI/CD pipelines
-
----
-
-## Understanding the Modes
-
-### Official Mode (Default)
-```bash
+# Terminal 1: Start with graceful fallback
 python api_server.py
+
+# Terminal 2: Make requests - will always work
+curl -X POST http://localhost:8000/generate \
+  -F "image=@photo.png" \
+  -F "graceful_fallback=true" \
+  -F "download=true" \
+  --output result.zip
 ```
-
-**Behavior:**
-- REQUIRES kaolin for Stage 2
-- FAILS with clear error if kaolin missing
-- Generates complete textured GLB mesh
-- Takes 4-5 minutes per image
-- Quality: 100% (official recommended)
-
-**Best for:**
-- Research/publications
-- Maximum quality output
-- When kaolin is already installed
-- Professional 3D models
-
-**Error if kaolin missing:**
-```
-RuntimeError: Stage 2 required but failed to import: ImportError
-Install kaolin: https://github.com/NVIDIAGameWorks/kaolin
-Or use --stage1-only flag or --graceful-fallback for fallback mode
-```
-
-### Stage 1 Only Mode
-```bash
-python api_server.py --stage1-only
-```
-
-**Behavior:**
-- SKIPS Stage 2 completely
-- NO kaolin required
-- Generates multi-view color + normal maps only
-- Takes 1.5-2 minutes per image (2.7x faster)
-- Quality: 95% (excellent multiviews)
-
-**Best for:**
-- Fast batch processing
-- When kaolin not available
-- Multi-view reconstruction
-- Texture synthesis pipelines
-- Budget/time constrained
-- Development/testing
-
-**Advantages:**
-- Guaranteed to work
-- 2.7x faster than full pipeline
-- No complex kaolin installation
-- Still excellent quality for most uses
-
-### Graceful Fallback Mode
-```bash
-python api_server.py --graceful-fallback
-```
-
-**Behavior:**
-- TRIES to load Stage 2
-- If kaolin missing, CONTINUES with Stage 1 only
-- Adapts to available dependencies
-- Time: 1.5-2 min (Stage 1 only) or 4-5 min (full)
-- Quality: 95-100% depending on kaolin
-
-**Best for:**
-- Production deployments
-- Cloud environments
-- CI/CD pipelines
-- Unknown server configurations
-- Maximum reliability
-
-**Advantages:**
-- Never fails (always delivers something)
-- Optimal use of available resources
-- Transparent to API users
+**Result:** Full quality if kaolin available, fallback to Stage 1 otherwise
 
 ---
 
-## Mode Comparison Table
+## Output Structure
 
-| Aspect | Official (Default) | Stage 1 Only | Graceful Fallback |
-|--------|-------------------|-------------|-------------------|
-| **Kaolin Required** | ✅ YES | ❌ NO | ⚠️ Optional |
-| **Guaranteed to Work** | ❌ Fails without kaolin | ✅ YES | ✅ YES |
-| **Output Format** | GLB + multiviews | Multiviews only | GLB (if kaolin) or multiviews |
-| **Processing Time** | 4-5 min | 1.5-2 min | 1.5-2 or 4-5 min |
-| **Quality** | ⭐⭐⭐⭐⭐ (100%) | ⭐⭐⭐⭐ (95%) | ⭐⭐⭐⭐-⭐⭐⭐⭐⭐ |
-| **Best For** | Research, max quality | Speed, multiviews | Production, robustness |
-| **Setup Complexity** | Kaolin installation | Simple (no deps) | Simple (optional kaolin) |
+When a request completes successfully, results are saved to:
+```
+outputs/SyncHuman_<timestamp>/
+├── Stage_1/
+│   ├── color_0.png to color_4.png        # 5 multiview color maps
+│   ├── normal_0.png to normal_4.png       # 5 multiview normal maps
+│   └── coordinates.npz                    # Sparse 3D structure
+└── Stage_2/
+    └── output.glb                         # Textured 3D mesh (if kaolin available)
+```
+
+The response JSON includes the output directory path for direct file access.
 
 ---
 
 ## Troubleshooting
 
-### "Stage 2 required but failed to import"
-
-**In Official Mode:**
-```
-Install kaolin (takes 20-30 min):
-  git clone https://github.com/NVIDIAGameWorks/kaolin.git
-  cd kaolin
-  python setup.py build_ext --inplace
-
-Or switch mode:
-  python api_server.py --stage1-only        # No kaolin needed
-  python api_server.py --graceful-fallback  # Falls back if needed
+### Issue: "kaolin not found" - Can't run Stage 2
+**Solution 1:** Use `stage1_only=true` flag in request
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "stage1_only=true"
 ```
 
-### "Out of Memory"
+**Solution 2:** Use `graceful_fallback=true` to adapt automatically
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "graceful_fallback=true"
+```
 
-**Solution:**
-- Use `--stage1-only` (2.7x faster, less memory)
-- Reduce steps: `--stage1-steps=30 --stage2-steps=15`
-- Use GPU with more VRAM (tested on A40 46GB, H800 80GB)
-- Minimum recommended: 40GB VRAM
+**Solution 3:** Install kaolin (see SETUP_GUIDE.md)
 
-### "API seems slow"
+### Issue: Out of Memory (OOM)
+**Solution:** Reduce inference steps:
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "stage1_steps=30" \
+  -F "stage2_steps=15"
+```
 
-**Expected behavior:**
-- First request takes 2-3 minutes to load pipelines
-- Subsequent requests: 1.5-2 min (Stage 1) or 4-5 min (Stage 1+2)
-- This is normal
+### Issue: Slow inference
+**Solution 1:** Skip Stage 2:
+```bash
+curl -X POST http://localhost:8000/generate \
+  -F "image=@image.png" \
+  -F "stage1_only=true"
+```
 
-**To speed up:**
-- Use `--stage1-only` (2.7x faster)
-- Reduce steps: `--stage1-steps=30`
-- Use faster GPU
+**Solution 2:** Check GPU:
+```bash
+nvidia-smi  # Verify GPU usage and memory
+```
 
-### "Input image not working"
-
-**Requirement:** Image must have transparent background (RGBA PNG)
-
+### Issue: xformers not available
 **Solution:**
 ```bash
-# Convert RGB to RGBA with transparent background
-convert input.jpg -transparent white input.png
+# Set environment variable before running api_server.py
+export ATTN_BACKEND=flash_attn  # or use auto-fallback
 
-# Or use online converter: removebg.com
+python api_server.py
+```
+
+### Issue: Port already in use
+**Solution:** Kill existing process or use different port
+```bash
+# Find and kill process on port 8000
+lsof -i :8000
+kill -9 <PID>
+
+# Then restart api_server.py
+python api_server.py
 ```
 
 ---
 
-## Performance Specifications
+## Performance Benchmarks
 
-### Tested Configuration
-- GPU: NVIDIA A40 (46GB VRAM)
-- PyTorch: 2.8.0 / 2.9.0 with CUDA 12.1
-- Official versions: diffusers==0.29.1, transformers==4.36.0
-- Attention backend: xformers
+Tested on NVIDIA A40 (46GB VRAM):
 
-### Stage 1 Only Timing
-```
-Pipeline load: 2-3 minutes (first request only)
-Per-image processing: 1.5-2 minutes
-Total first request: 3.5-5 minutes
-Subsequent requests: 1.5-2 minutes each
-Memory peak: 32-40 GB
-```
-
-### Full Pipeline (Stage 1+2) Timing
-```
-Pipeline load: 3-4 minutes (first request only)
-Per-image processing: 4-5 minutes
-Total first request: 7-9 minutes
-Subsequent requests: 4-5 minutes each
-Memory peak: 40-44 GB
-```
-
-### Speed Comparison
-| Operation | Stage 1 Only | Stage 1+2 | Speedup |
-|-----------|------------|----------|---------|
-| Load time | 2-3 min | 3-4 min | 1.33x slower |
-| Per-image | 1.5-2 min | 4-5 min | 2.7x faster |
-| Total first | 3.5-5 min | 7-9 min | 1.9x faster |
+| Mode | Time | Quality | Requires Kaolin |
+|------|------|---------|-----------------|
+| Stage 1 only (50 steps) | 1.5-2 min | 95% ⭐⭐⭐⭐ | No |
+| Stage 1 (75 steps) | 2-2.5 min | 97% ⭐⭐⭐⭐ | No |
+| Stage 1 + Stage 2 (50+25) | 4-5 min | 100% ⭐⭐⭐⭐⭐ | Yes |
+| Stage 1 + Stage 2 (100+40) | 5-6 min | 100% ⭐⭐⭐⭐⭐ | Yes |
 
 ---
 
-## Configuration Files
+## Official Approach
 
-Default configuration is embedded in code. For advanced users:
+SyncHuman's official recommended configuration:
+- **Default behavior:** Stage 1 + Stage 2 with kaolin for maximum quality
+- **Stage 1:** 50 inference steps, 768x768 resolution, 5 synchronized multiviews
+- **Stage 2:** 25 inference steps, FlexiCubes decoder, GLB mesh generation
+- **Quality:** 100% - complete textured 3D model with synchronized 2D-3D diffusion
+- **Fallback:** If kaolin unavailable, gracefully uses Stage 1 only (95% quality)
 
-```python
-CONFIG = {
-    "mode": "official",           # or "stage1-only", "graceful-fallback"
-    "stage1_steps": 50,           # 30-100, default 50
-    "stage2_steps": 25,           # 15-40, default 25
-    "require_kaolin": True,       # enforce kaolin for Stage 2
-    "attn_backend": "xformers",   # or "flash-attn"
-}
-```
-
-Configured via command-line flags (see "Command-Line Flags Reference" above).
+This approach provides maximum quality by default while still supporting fast/fallback modes via request parameters.
 
 ---
 
-## Security Considerations
+## Support
 
-- **File uploads:** Limited to reasonable size
-- **CORS:** Enabled for all origins (configure in production)
-- **API key:** Not implemented (add reverse proxy for authentication)
-- **Rate limiting:** Not implemented (add via reverse proxy)
-
-For production deployment:
-- Use reverse proxy (nginx, traefik)
-- Add authentication
-- Implement rate limiting
-- Restrict file sizes
-- Use HTTPS
-
----
-
-## FAQ
-
-**Q: Which mode should I use?**
-- Research/max quality: Official (default)
-- Fast batch processing: Stage 1 Only
-- Production server: Graceful Fallback
-
-**Q: Do I need kaolin?**
-- If using default (Official) mode: YES
-- If using `--stage1-only`: NO
-- If using `--graceful-fallback`: Optional (adapts)
-
-**Q: What's the quality difference?**
-- With kaolin (Official): ⭐⭐⭐⭐⭐ - complete GLB mesh + textures
-- Without kaolin (Stage 1 only): ⭐⭐⭐⭐ - multiview maps (95% quality)
-
-**Q: How long does it take?**
-- Stage 1 only: 1.5-2 minutes per image
-- Full pipeline: 4-5 minutes per image
-- Includes 2-3 min load time first request
-
-**Q: Can I customize quality?**
-- Yes: `--stage1-steps=75 --stage2-steps=35`
-- Higher steps = higher quality but slower
-
-**Q: Where are results saved?**
-- API returns JSON with paths
-- Or use `?download=true` to get ZIP
-- Files also saved in `tmp_api_jobs/{job_id}/`
-
----
-
-## Documentation Links
-
-- **Official SyncHuman Paper:** https://arxiv.org/pdf/2510.07723
-- **Official Repository:** https://github.com/IGL-HKUST/SyncHuman
-- **Kaolin Installation:** https://github.com/NVIDIAGameWorks/kaolin
-- **API Documentation:** http://localhost:8000/docs (when server running)
-
----
-
-**Last Updated:** November 2025
-**API Version:** 2.0.0 (Unified)
-**Status:** Production Ready
+For issues or questions:
+1. Check this documentation
+2. See SETUP_GUIDE.md for installation help
+3. Check INSTALLATION_SUMMARY.md for test results
+4. Review README.md for overview

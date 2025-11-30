@@ -63,25 +63,46 @@ python api_server.py
 # Visit http://localhost:8000
 ```
 
-## 🎯 Unified API - One Server, Three Modes
+## 🎯 Unified API - One Server, Request-Based Configuration
 
-The **single official API** with flexible configuration:
+The **single official API** with flexible per-request configuration:
 
 ```bash
-# Default: Maximum official quality (Stage 1 + Stage 2 with kaolin)
+# Start server (no flags needed)
 python api_server.py
 
-# Fast mode: No kaolin needed (Stage 1 only, 1.5-2 min)
-python api_server.py --stage1-only
-
-# Production: Always works (falls back gracefully)
-python api_server.py --graceful-fallback
-
-# Custom quality (adjust for your needs)
-python api_server.py --stage1-steps=75 --stage2-steps=35
+# Then make requests with flags (examples below)
 ```
 
-**Full API documentation:** [API.md](API.md) - Complete reference with examples, flags, and troubleshooting
+**Usage Examples (pass flags in curl request):**
+
+```bash
+# 1. Maximum Quality (default - Stage 1 + Stage 2)
+curl -X POST http://localhost:8000/generate \
+  -F "image=@input.png"
+# Output: Complete textured GLB model (4-5 min)
+
+# 2. Fast Mode (Stage 1 only, no kaolin)
+curl -X POST http://localhost:8000/generate \
+  -F "image=@input.png" \
+  -F "stage1_only=true"
+# Output: Multiview maps (1.5-2 min)
+
+# 3. Production Safe (graceful fallback)
+curl -X POST http://localhost:8000/generate \
+  -F "image=@input.png" \
+  -F "graceful_fallback=true"
+# Output: Full if kaolin available, Stage 1 otherwise
+
+# 4. Custom Quality
+curl -X POST http://localhost:8000/generate \
+  -F "image=@input.png" \
+  -F "stage1_steps=75" \
+  -F "stage2_steps=35"
+# Output: Adjust steps for quality/speed tradeoff
+```
+
+**Full API documentation:** [API.md](API.md) - Complete reference with all request parameters and troubleshooting
 
 ## 📚 Documentation
 
@@ -115,43 +136,44 @@ python inference_SecondStage.py
 
 ## 🌐 Web API
 
-Start the API server:
+Start the unified API server (no flags needed):
 ```bash
 export ATTN_BACKEND=xformers
-python api_server_stage1.py
+python api_server.py
 ```
 
-Then use it:
+Then make requests with desired configuration:
 ```bash
-# Upload image and get results
+# Visit http://localhost:8000 for interactive UI
+
+# Or use curl with request-based flags:
 curl -X POST http://localhost:8000/generate \
   -F "image=@input.png" \
-  -F "stage1_steps=50"
-
-# Visit http://localhost:8000 for interactive UI
+  -F "stage1_only=true"
 ```
+
+See [API.md](API.md) for all request parameters and examples.
 
 ## 📁 Project Structure
 
 ```
 SyncHuman/
-├── QUICKSTART.md                 # Quick start guide
-├── SETUP_GUIDE.md               # Comprehensive setup guide
-├── INSTALLATION_SUMMARY.md      # Verification report
-├── setup.sh                     # Automated setup script
-├── env.sh                       # Environment activation
-├── api_server_stage1.py         # Stage 1-only API server (✓ recommended)
-├── api_server.py                # Original API server
-├── inference_OneStage.py        # Stage 1 inference
-├── inference_SecondStage.py     # Stage 2 inference
-├── test_inference.py            # Stage 1 test script
-├── test_api.py                  # API test script
-├── ckpts/                       # Model checkpoints
-│   ├── OneStage/               # Stage 1 models
-│   └── SecondStage/            # Stage 2 models
-├── SyncHuman/                   # Main package
-├── examples/                    # Example images
-└── outputs/                     # Inference results
+├── README.md                    # This file
+├── API.md                       # Complete API reference
+├── SETUP_GUIDE.md              # Detailed setup guide
+├── INSTALLATION_SUMMARY.md     # Installation verification
+├── setup.sh                    # Automated setup script
+├── api_server.py               # ✓ Unified API server (one server, all modes)
+├── inference_OneStage.py       # Stage 1 inference script
+├── inference_SecondStage.py    # Stage 2 inference script
+├── test_inference.py           # Test Stage 1
+├── test_api.py                 # Test API server
+├── ckpts/                      # Model checkpoints
+│   ├── OneStage/              # Stage 1 models
+│   └── SecondStage/           # Stage 2 models
+├── SyncHuman/                  # Main package
+├── examples/                   # Example images
+└── outputs/                    # Inference results
 ```
 
 ## ✓ Tested & Verified
