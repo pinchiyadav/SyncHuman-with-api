@@ -1,65 +1,67 @@
 """
 SyncHuman Unified API Server - Official Maximum Quality Implementation
 
-This is the SINGLE official API for SyncHuman with intelligent configuration:
+This is the SINGLE official API for SyncHuman with request-based configuration.
 
-DEFAULT BEHAVIOR (Maximum Quality):
+SIMPLE STARTUP (no flags needed):
   python api_server.py
-  → Uses BOTH Stage 1 and Stage 2 (official approach with kaolin)
-  → Generates complete textured GLB 3D models
-  → Takes 4-5 minutes per image, requires kaolin
-  → Quality: ⭐⭐⭐⭐⭐ (100% official)
+  → Server listens on http://0.0.0.0:8000
+  → Default mode: official (Stage 1+2 with kaolin)
 
-SPEED-OPTIMIZED (Stage 1 Only, Fast):
-  python api_server.py --stage1-only
-  → Skips Stage 2 (no kaolin required)
-  → Generates multi-view color + normal maps only
-  → Takes 1.5-2 minutes per image
-  → Quality: ⭐⭐⭐⭐ (95% - excellent for most uses)
+USAGE - Pass flags in curl request:
 
-WITH GRACEFUL FALLBACK (Production Safe):
-  python api_server.py --graceful-fallback
-  → Tries Stage 1+2, falls back to Stage 1 if kaolin missing
-  → Always works, adapts to available dependencies
-  → Time: 1.5-2 min (Stage 1 only) or 4-5 min (full pipeline)
-  → Quality: 95-100% depending on kaolin availability
+1. MAXIMUM QUALITY (default):
+  curl -X POST http://localhost:8000/generate \
+    -F "image=@image.png" \
+    → Stage 1 + Stage 2 with kaolin
+    → Complete textured GLB 3D model
+    → Time: 4-5 minutes, Quality: ⭐⭐⭐⭐⭐
 
-QUALITY CUSTOMIZATION:
-  python api_server.py --stage1-steps=75 --stage2-steps=35
-  → Custom sampling steps for fine-tuning quality vs speed
-  → Stage 1 steps: 30-100 (default 50, more = higher quality)
-  → Stage 2 steps: 15-40 (default 25, more = higher quality)
+2. FAST MODE (no kaolin):
+  curl -X POST http://localhost:8000/generate \
+    -F "image=@image.png" \
+    -F "stage1_only=true" \
+    → Stage 1 only
+    → Multiview color + normal maps
+    → Time: 1.5-2 minutes, Quality: ⭐⭐⭐⭐ (95%)
 
-ARCHITECTURE:
-├─ Stage 1: 2D-3D Cross-Space Diffusion (generates multiviews)
-├─ Stage 2: Structured Latent Refinement (generates GLB mesh) [requires kaolin]
-└─ Output: Complete textured 3D model in official format
+3. PRODUCTION MODE (graceful fallback):
+  curl -X POST http://localhost:8000/generate \
+    -F "image=@image.png" \
+    -F "graceful_fallback=true" \
+    → Tries full pipeline, falls back if kaolin missing
+    → Always works
 
-OFFICIAL APPROACH:
-- Follows exact specifications from SyncHuman paper
-- Uses official default parameters
-- Generates high-quality textured 3D models
-- Stage 2 refinement provides the final 5% quality enhancement
+4. CUSTOM QUALITY:
+  curl -X POST http://localhost:8000/generate \
+    -F "image=@image.png" \
+    -F "stage1_steps=75" \
+    -F "stage2_steps=35" \
+    → Adjust sampling steps for quality/speed tradeoff
 
-DEPENDENCIES:
-- PyTorch 2.1.1+ (tested on 2.8.0, 2.9.0)
-- Official versions: diffusers==0.29.1, transformers==4.36.0
-- xformers (memory-efficient attention)
-- kaolin (for Stage 2 - optional, see --graceful-fallback)
-- NVIDIA GPU with 40GB+ VRAM (tested on A40, H800)
+REQUEST PARAMETERS:
+- image: Image file (RGBA PNG recommended)
+- image_url: Or provide image URL
+- stage1_only: true/false (skip Stage 2, no kaolin)
+- graceful_fallback: true/false (try full, fall back gracefully)
+- stage1_steps: 30-100 (default 50)
+- stage2_steps: 15-40 (default 25)
+- download: true/false (return ZIP archive)
 
 ENDPOINTS:
-GET  /health              → Check API status and stage availability
-GET  /info                → Get API configuration and GPU info
+GET  /health              → Check API status
+GET  /info                → Get API configuration
 GET  /                    → API documentation
 POST /generate            → Generate 3D model from image
-POST /generate-batch      → Generate 3D models from multiple images
 
-For complete documentation, see: UNIFIED_API_DOCUMENTATION.md
+OFFICIAL APPROACH:
+- Default: Both Stage 1 and Stage 2 (with kaolin) - maximum quality
+- Can skip Stage 2 with stage1_only=true (no kaolin needed)
+- Quality drops 5-10% without Stage 2 (still excellent at 95%)
+
+For complete documentation, see: API.md
 """
 
-import argparse
-import asyncio
 import json
 import os
 import sys
@@ -76,66 +78,11 @@ from PIL import Image
 import urllib.request
 
 # ============================================================================
-# COMMAND-LINE CONFIGURATION
+# ENVIRONMENT
 # ============================================================================
 
-parser = argparse.ArgumentParser(description="SyncHuman Unified API Server")
-parser.add_argument(
-    "--host",
-    default="0.0.0.0",
-    help="Server host (default: 0.0.0.0)"
-)
-parser.add_argument(
-    "--port",
-    type=int,
-    default=8000,
-    help="Server port (default: 8000)"
-)
-parser.add_argument(
-    "--stage1-only",
-    action="store_true",
-    help="Use Stage 1 only (no kaolin required, 95%% quality, 2x faster)"
-)
-parser.add_argument(
-    "--graceful-fallback",
-    action="store_true",
-    help="Try Stage 1+2, fall back to Stage 1 if kaolin missing (production mode)"
-)
-parser.add_argument(
-    "--stage1-steps",
-    type=int,
-    default=50,
-    help="Stage 1 inference steps (30-100, default: 50)"
-)
-parser.add_argument(
-    "--stage2-steps",
-    type=int,
-    default=25,
-    help="Stage 2 sampling steps (15-40, default: 25, requires Stage 2)"
-)
-parser.add_argument(
-    "--require-kaolin",
-    action="store_true",
-    default=True,
-    help="Require kaolin for Stage 2 (default: True)"
-)
-parser.add_argument(
-    "--attn-backend",
-    default="xformers",
-    choices=["xformers", "flash-attn"],
-    help="Attention backend (default: xformers)"
-)
-
-# Parse arguments early to configure behavior
-args = parser.parse_args()
-
-# ============================================================================
-# CONFIGURATION & ENVIRONMENT
-# ============================================================================
-
-# Set attention backend
-os.environ.setdefault("ATTN_BACKEND", args.attn_backend)
-os.environ.setdefault("SPARSE_ATTN_BACKEND", args.attn_backend)
+os.environ.setdefault("ATTN_BACKEND", "xformers")
+os.environ.setdefault("SPARSE_ATTN_BACKEND", "xformers")
 
 # Resolve repo root
 REPO_ROOT = Path(os.environ.get("SYNCHUMAN_ROOT", Path(__file__).resolve().parent))
@@ -144,17 +91,8 @@ if (REPO_ROOT / "SyncHumanOneStagePipeline.py").exists():
 else:
     sys.path.append(str(REPO_ROOT))
 
-# Configuration
-CONFIG = {
-    "mode": "stage1-only" if args.stage1_only else ("graceful-fallback" if args.graceful_fallback else "official"),
-    "stage1_steps": max(30, min(100, args.stage1_steps)),  # Clamp to valid range
-    "stage2_steps": max(15, min(40, args.stage2_steps)),   # Clamp to valid range
-    "require_kaolin": args.require_kaolin and not args.stage1_only,
-    "attn_backend": args.attn_backend,
-}
-
 # ============================================================================
-# PIPELINE LOADING
+# PIPELINE LOADING - TRY BOTH, USE WHAT'S AVAILABLE
 # ============================================================================
 
 STAGE1_AVAILABLE = False
@@ -166,42 +104,26 @@ try:
     STAGE1_AVAILABLE = True
 except Exception as e:
     print(f"ERROR: Stage 1 not available: {e}")
-    if not args.graceful_fallback:
-        raise RuntimeError("Stage 1 is required. Check SyncHuman installation.")
+    raise RuntimeError("Stage 1 is required. Check SyncHuman installation.")
 
-# Import Stage 2 (conditional based on mode)
-if not args.stage1_only:
-    try:
-        from SyncHuman.pipelines.SyncHumanTwoStage import SyncHumanTwoStagePipeline
-        STAGE2_AVAILABLE = True
-    except Exception as e:
-        print(f"WARNING: Stage 2 not available: {type(e).__name__}")
-        if args.require_kaolin and not args.graceful_fallback:
-            raise RuntimeError(
-                f"Stage 2 required but failed to import: {type(e).__name__}\n"
-                f"Install kaolin: https://github.com/NVIDIAGameWorks/kaolin\n"
-                f"Or use --stage1-only flag or --graceful-fallback for fallback mode"
-            )
-        if args.graceful_fallback:
-            print("FALLBACK: Continuing with Stage 1 only")
-
-if not STAGE1_AVAILABLE:
-    raise RuntimeError("Stage 1 is required for all modes.")
+# Import Stage 2 (optional - will continue if not available)
+try:
+    from SyncHuman.pipelines.SyncHumanTwoStage import SyncHumanTwoStagePipeline
+    STAGE2_AVAILABLE = True
+    print("✓ Stage 2 available (kaolin installed)")
+except Exception as e:
+    print(f"ℹ Stage 2 not available: {type(e).__name__} (kaolin missing)")
+    print(f"  → Use stage1_only=true flag in request to skip Stage 2")
+    print(f"  → Or use graceful_fallback=true to adapt automatically")
 
 # ============================================================================
 # FASTAPI APP
 # ============================================================================
 
-mode_desc = {
-    "official": "OFFICIAL MAXIMUM QUALITY (Stage 1+2 with kaolin, 4-5 min, 100%% quality)",
-    "stage1-only": "FAST MODE (Stage 1 only, no kaolin, 1.5-2 min, 95%% quality)",
-    "graceful-fallback": "PRODUCTION SAFE (Stage 1+2 if kaolin, Stage 1 only otherwise)",
-}
-
 app = FastAPI(
     title="SyncHuman Unified API",
     version="2.0.0",
-    description=f"Human 3D Reconstruction - {mode_desc[CONFIG['mode']]}"
+    description="Official SyncHuman - 3D Human Reconstruction"
 )
 
 app.add_middleware(
@@ -214,32 +136,23 @@ app.add_middleware(
 
 # Global pipelines
 _stage1_pipe: Optional[SyncHumanOneStagePipeline] = None
-_stage2_pipe = None  # Type: SyncHumanTwoStagePipeline if available
+_stage2_pipe = None
 
 def _load_pipelines():
-    """Load pipelines based on configuration"""
+    """Load pipelines on demand"""
     global _stage1_pipe, _stage2_pipe
 
     if _stage1_pipe is None:
-        print("=" * 80)
-        print("Loading Stage 1 Pipeline")
-        print("=" * 80)
+        print("Loading Stage 1 Pipeline...")
         _stage1_pipe = SyncHumanOneStagePipeline.from_pretrained("./ckpts/OneStage")
         _stage1_pipe.SyncHuman_2D3DCrossSpaceDiffusion.enable_xformers_memory_efficient_attention()
-        print("✓ Stage 1 loaded successfully")
-        print(f"  Mode: {CONFIG['mode']}")
-        print(f"  Stage 1 steps: {CONFIG['stage1_steps']}")
-        print()
+        print("✓ Stage 1 loaded")
 
-    if not args.stage1_only and STAGE2_AVAILABLE and _stage2_pipe is None:
-        print("=" * 80)
-        print("Loading Stage 2 Pipeline")
-        print("=" * 80)
+    if STAGE2_AVAILABLE and _stage2_pipe is None:
+        print("Loading Stage 2 Pipeline...")
         _stage2_pipe = SyncHumanTwoStagePipeline.from_pretrained("./ckpts/SecondStage")
         _stage2_pipe.cuda()
-        print("✓ Stage 2 loaded successfully")
-        print(f"  Stage 2 steps: {CONFIG['stage2_steps']}")
-        print()
+        print("✓ Stage 2 loaded")
 
 def _prepare_rgba(input_path: Path, output_path: Path) -> float:
     """Prepare RGBA image: crop, square-pad, resize to 768x768"""
@@ -282,52 +195,45 @@ def _prepare_rgba(input_path: Path, output_path: Path) -> float:
 
 @app.get("/health")
 async def health_check():
-    """Health check with stage availability"""
+    """Health check - shows what's available"""
     return {
         "status": "ok",
-        "service": "SyncHuman Unified API",
-        "version": "2.0.0",
-        "mode": CONFIG["mode"],
         "stage1_available": STAGE1_AVAILABLE,
         "stage2_available": STAGE2_AVAILABLE,
-        "stage1_steps": CONFIG["stage1_steps"],
-        "stage2_steps": CONFIG["stage2_steps"],
+        "message": "Both stages available" if STAGE2_AVAILABLE else "Stage 1 only (Stage 2 requires kaolin)"
     }
 
 @app.get("/info")
 async def info():
-    """Get API capabilities and configuration"""
+    """API information"""
     return {
         "service": "SyncHuman Unified API",
         "version": "2.0.0",
-        "mode": CONFIG["mode"],
-        "mode_description": mode_desc[CONFIG["mode"]],
-        "configuration": CONFIG,
         "stages": {
             "stage1": {
                 "available": STAGE1_AVAILABLE,
-                "description": "2D-3D cross-space diffusion multiview generation",
-                "steps": CONFIG["stage1_steps"],
-                "output": ["5 color maps", "5 normal maps", "sparse voxel grid"],
+                "description": "2D-3D cross-space diffusion (multiview generation)",
             },
             "stage2": {
                 "available": STAGE2_AVAILABLE,
-                "description": "Structured latent refinement with FlexiCubes decoder",
-                "steps": CONFIG["stage2_steps"] if STAGE2_AVAILABLE else "N/A",
-                "output": ["GLB textured mesh", "triangle mesh PLY"],
-                "requires_kaolin": True,
-            },
+                "description": "Structured latent refinement (GLB mesh generation)",
+                "requires": "kaolin",
+            }
+        },
+        "request_parameters": {
+            "image": "Image file (RGBA PNG)",
+            "image_url": "Or image URL",
+            "stage1_only": "Skip Stage 2 (true/false)",
+            "graceful_fallback": "Fall back gracefully (true/false)",
+            "stage1_steps": "30-100 (default 50)",
+            "stage2_steps": "15-40 (default 25)",
+            "download": "Return ZIP archive (true/false)",
         },
         "gpu_info": {
             "available": torch.cuda.is_available(),
             "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU",
             "memory_gb": torch.cuda.get_device_properties(0).total_memory // (1024**3) if torch.cuda.is_available() else 0,
-        },
-        "time_estimates": {
-            "stage1_only": "1.5-2 minutes",
-            "stage1_plus_stage2": "4-5 minutes",
-            "current_mode": "1.5-2 minutes" if args.stage1_only else ("4-5 minutes" if STAGE2_AVAILABLE else "1.5-2 minutes"),
-        },
+        }
     }
 
 @app.get("/")
@@ -335,63 +241,71 @@ async def root():
     """API documentation"""
     return {
         "title": "SyncHuman Unified API",
-        "description": "Official SyncHuman 3D Human Reconstruction",
+        "description": "Official SyncHuman - 3D Human Reconstruction",
         "version": "2.0.0",
-        "mode": CONFIG["mode"],
-        "documentation": "See /docs for interactive API documentation",
-        "endpoints": {
-            "GET /health": "Check API status",
-            "GET /info": "Get API configuration",
-            "GET /": "This documentation",
-            "POST /generate": "Generate 3D model from single image",
+        "quick_examples": {
+            "maximum_quality": "curl -X POST http://localhost:8000/generate -F 'image=@image.png' -F 'download=true'",
+            "fast_mode": "curl -X POST http://localhost:8000/generate -F 'image=@image.png' -F 'stage1_only=true'",
+            "production_safe": "curl -X POST http://localhost:8000/generate -F 'image=@image.png' -F 'graceful_fallback=true'",
+            "custom_quality": "curl -X POST http://localhost:8000/generate -F 'image=@image.png' -F 'stage1_steps=75' -F 'stage2_steps=35'",
         },
-        "example_usage": {
-            "bash": "curl -X POST http://localhost:8000/generate -F 'image=@image.png' -F 'download=true' --output result.zip",
-            "python": "requests.post('http://localhost:8000/generate', files={'image': open('image.png', 'rb')}, data={'download': True})",
-        },
+        "documentation": "See /info for parameters and settings"
     }
 
 @app.post("/generate")
 async def generate(
     image: Optional[UploadFile] = File(None),
     image_url: Optional[str] = Form(None),
+    stage1_only: bool = Form(False),
+    graceful_fallback: bool = Form(False),
+    stage1_steps: int = Form(50),
+    stage2_steps: int = Form(25),
     download: bool = Form(False),
 ):
     """
-    Generate 3D model from image using configured pipeline
+    Generate 3D model from image
 
-    Query parameters:
-    - image: Upload image file (RGBA PNG with transparent background)
-    - image_url: Or provide image URL
-    - download: Return ZIP archive if true
-
-    Returns:
-    - Complete 3D model generation result with all outputs
-    - If Stage 2 available: GLB textured mesh
-    - If Stage 1 only: Color + normal maps
+    Parameters (pass in curl request):
+    - image: Image file
+    - image_url: Or image URL
+    - stage1_only: Skip Stage 2 (no kaolin needed)
+    - graceful_fallback: Try full, fall back if needed
+    - stage1_steps: 30-100 (default 50)
+    - stage2_steps: 15-40 (default 25)
+    - download: Return ZIP (true/false)
     """
     try:
         _load_pipelines()
 
+        # Validate input
         if not image and not image_url:
             raise HTTPException(status_code=400, detail="Either 'image' or 'image_url' required")
+
+        # Clamp steps to valid ranges
+        stage1_steps = max(30, min(100, stage1_steps))
+        stage2_steps = max(15, min(40, stage2_steps))
+
+        # Determine mode based on flags
+        use_stage2 = STAGE2_AVAILABLE and not stage1_only
+        if not use_stage2 and graceful_fallback:
+            use_stage2 = STAGE2_AVAILABLE
 
         job_id = str(uuid4())[:8]
         work_dir = Path("./tmp_api_jobs") / job_id
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"\n[{job_id}] Starting 3D generation ({CONFIG['mode']} mode)")
-        print(f"[{job_id}] Configuration: Stage1={CONFIG['stage1_steps']} steps, "
-              f"Stage2={CONFIG['stage2_steps'] if STAGE2_AVAILABLE else 'N/A'}")
+        mode_desc = "Official" if use_stage2 else "Fast (Stage 1 only)"
+        print(f"\n[{job_id}] Starting 3D generation - {mode_desc}")
+        print(f"[{job_id}] Stage 1: {stage1_steps} steps, Stage 2: {'enabled' if use_stage2 else 'skipped'}")
 
         # Get image
         if image:
-            image_path = work_dir / "input_uploaded.png"
+            image_path = work_dir / "input.png"
             contents = await image.read()
             with open(image_path, "wb") as f:
                 f.write(contents)
         else:
-            image_path = work_dir / "input_url.png"
+            image_path = work_dir / "input.png"
             try:
                 urllib.request.urlretrieve(image_url, image_path)
             except Exception as e:
@@ -406,16 +320,16 @@ async def generate(
 
         result = {
             "job_id": job_id,
-            "mode": CONFIG["mode"],
-            "status": "processing",
+            "mode": mode_desc,
+            "status": "completed",
             "alpha_coverage": float(alpha_coverage),
         }
 
-        # Stage 1
+        # ====== STAGE 1 ======
         output_dir_s1 = work_dir / "stage1_output"
         output_dir_s1.mkdir(parents=True, exist_ok=True)
 
-        print(f"[{job_id}] Stage 1: Multi-view Generation ({CONFIG['stage1_steps']} steps)")
+        print(f"[{job_id}] Running Stage 1...")
         assert _stage1_pipe is not None
         torch.manual_seed(43)
 
@@ -438,14 +352,14 @@ async def generate(
             "output_dir": str(output_dir_s1),
             "files": s1_files,
         }
-        print(f"[{job_id}] ✓ Stage 1 completed")
+        print(f"[{job_id}] ✓ Stage 1 complete")
 
-        # Stage 2 (if available and not stage1-only mode)
-        if STAGE2_AVAILABLE and not args.stage1_only:
+        # ====== STAGE 2 ======
+        if use_stage2:
             output_dir_s2 = work_dir / "stage2_output"
             output_dir_s2.mkdir(parents=True, exist_ok=True)
 
-            print(f"[{job_id}] Stage 2: Refined 3D Mesh ({CONFIG['stage2_steps']} steps)")
+            print(f"[{job_id}] Running Stage 2...")
             assert _stage2_pipe is not None
             torch.cuda.empty_cache()
 
@@ -465,47 +379,39 @@ async def generate(
                 "output_dir": str(output_dir_s2),
                 "files": s2_files,
             }
-            print(f"[{job_id}] ✓ Stage 2 completed")
-            print(f"[{job_id}] ✓ Final 3D model: {output_dir_s2}/output.glb")
+            print(f"[{job_id}] ✓ Stage 2 complete - GLB model ready")
         else:
-            if args.stage1_only:
-                print(f"[{job_id}] Stage 2: Skipped (--stage1-only mode)")
-            elif args.graceful_fallback and not STAGE2_AVAILABLE:
-                print(f"[{job_id}] Stage 2: Not available (kaolin missing), using Stage 1 only")
-
+            reason = "stage1_only=true" if stage1_only else ("graceful_fallback but kaolin missing" if graceful_fallback else "kaolin not available")
             result["stage2"] = {
                 "status": "skipped",
-                "reason": "stage1-only mode" if args.stage1_only else "kaolin not available",
-                "quality_note": "Stage 1 provides excellent 95%% quality with multiviews",
+                "reason": reason,
+                "note": "Stage 1 provides excellent 95% quality with multiviews",
             }
+            print(f"[{job_id}] Stage 2 skipped ({reason})")
 
-        # Package results
+        # ====== PACKAGE ======
         if download:
             import zipfile
             archive_path = work_dir / "results.zip"
             with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                # Stage 1
                 for filename in result["stage1"]["files"].values():
                     file_path = Path(result["stage1"]["output_dir"]) / filename
                     if file_path.exists():
                         zf.write(file_path, arcname=f"stage1/{filename}")
 
-                # Stage 2 (if available)
                 if result.get("stage2", {}).get("status") == "completed":
                     for filename in result["stage2"]["files"].values():
                         file_path = Path(result["stage2"]["output_dir"]) / filename
                         if file_path.exists():
                             zf.write(file_path, arcname=f"stage2/{filename}")
 
-            result["status"] = "completed"
-            print(f"[{job_id}] ✓ Results packaged as ZIP")
+            print(f"[{job_id}] ✓ Complete - packaged as ZIP")
             return FileResponse(
                 archive_path,
                 media_type="application/zip",
                 filename=f"synchuman_{job_id}.zip"
             )
 
-        result["status"] = "completed"
         print(f"[{job_id}] ✓ Complete!")
         return JSONResponse(result)
 
@@ -527,17 +433,20 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("SyncHuman Unified API Server")
     print("=" * 80)
-    print(f"Mode: {CONFIG['mode'].upper()}")
-    print(f"Description: {mode_desc[CONFIG['mode']]}")
-    print(f"Stage 1 Steps: {CONFIG['stage1_steps']}")
-    print(f"Stage 2 Steps: {CONFIG['stage2_steps']}" if STAGE2_AVAILABLE else "Stage 2 Steps: N/A (not available)")
-    print(f"Attention Backend: {CONFIG['attn_backend']}")
+    print(f"Stage 1: ✓ Available")
+    print(f"Stage 2: {'✓ Available (kaolin installed)' if STAGE2_AVAILABLE else '✗ Not available (kaolin missing)'}")
     print(f"GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
     if torch.cuda.is_available():
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory // (1024**3)}GB")
     print("=" * 80)
-    print(f"Starting server on http://{args.host}:{args.port}")
-    print("API docs: http://localhost:8000/docs")
+    print("Server: http://0.0.0.0:8000")
+    print("Docs:   http://localhost:8000/docs")
+    print("=" * 80)
+    print("\nUSAGE - Pass flags in curl request:")
+    print("  curl -X POST http://localhost:8000/generate \\")
+    print("    -F 'image=@image.png' \\")
+    print("    -F 'stage1_only=true'")
+    print("\nSee API.md or http://localhost:8000/info for full reference")
     print("=" * 80 + "\n")
 
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
