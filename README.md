@@ -58,21 +58,58 @@ source /opt/conda/bin/activate SyncHuman
 export ATTN_BACKEND=xformers
 python inference_OneStage.py
 
-# Or use the API
-python api_server_stage1.py
+# Or use the unified API (see below for more options)
+python api_server.py
 # Visit http://localhost:8000
 ```
 
+## 🎯 Unified API - Three Modes, One Server
+
+The **single official API** with intelligent defaults for all use cases:
+
+### Default: Maximum Official Quality
+```bash
+python api_server.py
+# → Stage 1 + Stage 2 with kaolin
+# → Complete textured GLB 3D models
+# → 4-5 minutes, ⭐⭐⭐⭐⭐ quality
+```
+
+### Fast Mode: No Kaolin Needed
+```bash
+python api_server.py --stage1-only
+# → Stage 1 only (multiview generation)
+# → 1.5-2 minutes, ⭐⭐⭐⭐ quality (95%)
+# → Perfect for batch processing
+```
+
+### Production Mode: Always Works
+```bash
+python api_server.py --graceful-fallback
+# → Tries full pipeline, falls back to Stage 1 if kaolin missing
+# → Always delivers results
+# → Perfect for cloud deployments
+```
+
+**Complete API documentation:** [UNIFIED_API_DOCUMENTATION.md](UNIFIED_API_DOCUMENTATION.md)
+
 ## 📚 Detailed Documentation
 
-We provide comprehensive setup guides for different needs:
+We provide comprehensive guides for different needs:
 
-1. **[QUICKSTART.md](QUICKSTART.md)** - 5-minute quick start guide
+1. **[UNIFIED_API_DOCUMENTATION.md](UNIFIED_API_DOCUMENTATION.md)** - Complete API reference
+   - All command-line flags and options
+   - Usage examples for all modes
+   - Output format explanation
+   - Troubleshooting guide
+   - Configuration matrix
+
+2. **[QUICKSTART.md](QUICKSTART.md)** - 5-minute quick start guide
    - Perfect for first-time users
    - Shows how to run your first inference
    - Includes API usage examples
 
-2. **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Comprehensive 50-page setup guide
+3. **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Comprehensive 50-page setup guide
    - Detailed step-by-step installation
    - Troubleshooting section with solutions
    - Environment variables reference
@@ -80,11 +117,22 @@ We provide comprehensive setup guides for different needs:
    - GPU memory optimization tips
    - Performance benchmarks
 
-3. **[INSTALLATION_SUMMARY.md](INSTALLATION_SUMMARY.md)** - Installation verification report
+4. **[INSTALLATION_SUMMARY.md](INSTALLATION_SUMMARY.md)** - Installation verification report
    - What was tested and verified
    - Known issues and solutions
    - Files created and modified
    - Performance metrics on A40 GPU
+
+5. **[KAOLIN_EXPLAINED.md](KAOLIN_EXPLAINED.md)** - Understanding Kaolin
+   - What kaolin does and why it's used
+   - How to avoid kaolin if needed
+   - Quality impact analysis
+   - Installation instructions
+
+6. **[API_COMPARISON.md](API_COMPARISON.md)** - Compare different API versions
+   - Differences between api_server implementations
+   - When to use each version
+   - Migration guides
 
 ## 🚀 Inference
 
